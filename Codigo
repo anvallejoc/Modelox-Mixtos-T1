@@ -1,0 +1,531 @@
+
+```{=tex}
+\input{titlepage}
+\thispagestyle{empty}
+\tableofcontents
+\newpage
+\thispagestyle{empty}
+\listoffigures
+\newpage
+```
+
+```{=tex}
+\pagestyle{myheadings}
+\setcounter{page}{4}
+```
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, include=FALSE}
+library(kableExtra)
+library(knitr)
+require(tidyverse)
+library(xtable)
+library(summarytools)
+library(GGally)
+library(magrittr)
+library(mvnormtest)
+library(car)
+library(mvShapiroTest)
+library(factoextra)
+library(magrittr)
+library(FactoClass)
+library(scatterplot3d)
+library(caTools)
+library(class)
+library(MASS)
+require(readxl)
+require(writexl)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(broom)
+```
+
+\noindent
+Considerando la base de datos anexa y teniendo en cuenta que estos datos son de un experimento para estimar el tiempo promedio para cubrir una distancia plana de 35 metros (sin correr, solo caminando a un ritmo normal). Se les pidió a unos participantes
+que caminaran 35 metros en tres momentos diferentes y se registró en cada
+intento el tiempo para recorrer los 35 metros caminando a un ritmo normal.
+Los datos recopilados se encuentran en el anexo (en formato ancho). 
+
+```{r, include=FALSE}
+data <- read_xlsx("Datos_Experimento_ Tiempo_Pasos.xlsx") 
+```
+
+
+```{r}
+data$Genero <- as.factor(data$Genero)
+data$ID <- as.character(data$ID)
+```
+
+
+\section{1. Convierta estos datos a formato largo.}
+
+
+
+\noindent
+Forma 1
+
+\begin{verbatim}
+data_long <- data %>% 
+  pivot_longer(cols = c('T1', 'T2', 'T3'), names_to = 'Tiempo', values_to = 'Valor')
+\end{verbatim}
+
+```{r}
+data_long <- data %>% 
+  pivot_longer(cols = c('T1', 'T2', 'T3'), names_to = 'Tiempo', values_to = 'Valor')
+```
+
+\noindent
+Forma 2
+
+\begin{verbatim}
+data_long <- pivot_longer(data, cols = c(T1, T2, T3), names_to = "Tiempo", values_to = "Valor")
+\end{verbatim}
+
+```{r}
+data_long <- pivot_longer(data, cols = c(T1, T2, T3), names_to = "Tiempo", values_to = "Valor")
+```
+
+\noindent
+Forma 3
+
+\begin{verbatim}
+data_long <- gather(data, key = "Tiempo", value = "Valor", -ID, -Genero)
+\end{verbatim}
+
+```{r}
+data_long <- gather(data, key = "Tiempo", value = "Valor", -ID, -Genero)
+```
+
+\noindent
+Forma 4
+
+\begin{verbatim}
+data_long <- reshape2::melt(data, id.vars = c("ID", "Genero"), 
+                            variable.name = "Tiempo", value.name = "Valor")
+\end{verbatim}
+
+```{r}
+data_long <- reshape2::melt(data, id.vars = c("ID", "Genero"), 
+                            variable.name = "Tiempo", value.name = "Valor")
+```
+
+```{r}
+data_long$ID <- as.character(data_long$ID)
+data_long$Genero <- as.factor(data_long$Genero)
+```
+
+\noindent
+Se creo una nueva variable llamada "Valor" en la cual se encuentran especificados los valores del tiempo que registro cada sujeto en la caminata.
+
+
+\noindent
+Breve ejemplo de la base de datos usando los códigos anteriormente evidenciados:
+
+![](1.png)
+
+```{r, eval=FALSE}
+x <- data.frame(data_long)
+titulo <- head(x)
+kable(titulo) %>%
+  kable_styling(position = "center", font_size = 10)
+```
+
+
+\newpage
+\section{2. Calcule estadísticos de resumen de acuerdo a la variable género
+y a la variable tiempo. Interprete.}
+
+\noindent
+Para la variable Genéro: 
+```{r}
+genero_resumen <- data_long %>%
+  group_by(Genero) %>%
+  summarize(media = mean(Valor), desviacion_estandar = sd(Valor))
+kable(genero_resumen)
+```
+
+
+\noindent
+Se observa que la medida de caminata media para cada grupo dados por hombres (M) y mujeres (F) es de 23.29 y 26.74 segundos respecivamente, la desviación estandar para los hombres es de 2.59 segundos y para las mujeres es de 3.25 segundos. Estos resultados muestran que en promedio los hombres recorren esta distancia en un menor tiempo, además, es menor la variación respecto a este que en comparación con el grupo de mujeres ya que se demoran 3.44277 segundos más. 
+
+\noindent
+Para la varible Tiempo:
+```{r}
+tiempo_resumen <- data_long %>%
+  group_by(Tiempo) %>%
+  summarize(media = mean(Valor), desviacion_estandar = sd(Valor))
+kable(tiempo_resumen)
+```
+
+\noindent
+Para las 3 tomas de tiempo se observa que el menor en promedio es el 3, en promedio en este para recorrer los 35 m (metros) se demoraron 24.56 segundos con una desviación de +- 3.23 segundos. En segundo lugar tenemos el timepo 2 que en promedio el recorrido duro 24.81 segundos y el más demorado fue la toma de tiempo 1, teniendo en promedio 25.16 segundos y contando con la mayor varianza, siendo esta de +- 3.65 segundos.
+
+\noindent
+Para ambas variables, Género y tiempo:
+```{r,message=FALSE}
+data_resumen <- data_long %>%
+  group_by(Genero, Tiempo) %>%
+  summarize(media = mean(Valor), desviacion_estandar = sd(Valor))
+kable(data_resumen) 
+```
+
+\newpage
+\section{3. Obtenga gráficos de líneas para cada persona de acuerdo al
+género (gráco de espagueti). Comente.}
+
+
+\hspace{1em}
+\noindent
+Forma 1
+
+
+![Grafico de lineas para cada persona por genero (tipo 1)](333.png)
+
+
+\hspace{1em}
+
+```{r, fig.cap="Grafico de lineas para cada persona por genero (tipo 1)", eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, color = as.factor(ID))) +
+  geom_line(aes(group = ID)) +
+  facet_wrap(~ Genero, ncol = 1) +
+  labs(x = "Tiempo", y = "Valor", color = "ID") +
+  scale_color_discrete(name = "ID") +
+  theme_minimal() +
+  theme(legend.position = "right", 
+        axis.line = element_line(size = 1, colour = "black"), 
+        axis.text = element_text(size = 8), 
+        axis.title = element_text(size = 10, face = "bold"), 
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+        panel.grid.major = element_line(size = 0.5, linetype = 'dotted'))
+```
+
+\hspace{1em}
+\noindent
+Analizando la gráfica se observa que al parecer los hombres tienen una pendiente más similar y menos variante que las mujeres, es decir, tiempos de recorrido más parejos. Esto da un indicio de que posiblemente para modelar los tiempos de los hombres se pueda utilizar una pendiente fija y un intercepto aleatorio, caso contrario para las mujeres que tienen una pendiente más variante, lo que lleva a pensar que se podría asumir un modelo con intercepto y pendiente aleatorios.
+
+\newpage
+\noindent
+Forma 2
+
+![Grafico de lineas para cada persona por genero (tipo 2)](3.2.png)
+
+```{r, fig.cap="Grafico de lineas para cada persona por genero (tipo 2)", eval=FALSE}
+library(lattice)
+xyplot(Valor ~ Tiempo | Genero, groups = ID, data = data_long, type = "l",
+       auto.key = list(columns = 2, title = "ID"), scales = list(y = list(rot = 0)))
+
+```
+
+\hspace{1em}
+
+\newpage
+\noindent
+Otra forma de realizar el gráfico:
+
+\hspace{1em}
+![Grafico de lineas para cada persona por genero (tipo 3)](3.3.png)
+
+
+```{r,fig.asp=0.62, fig.cap="Grafico de lineas para cada persona por genero (tipo 3)",eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, color = as.factor(ID))) +
+   geom_line(aes(group = ID)) +
+   facet_wrap(~ Genero, ncol = 1) +
+   labs(x = "Tiempo", y = "Valor", color = "ID") +
+   scale_color_discrete(name = "ID") +
+   theme_minimal() +
+   
+   theme(legend.position = "bottom", 
+         axis.line = element_line(size = 1, colour = "black"), 
+         axis.text = element_text(size = 12), 
+         axis.title = element_text(size = 14, face = "bold"), 
+         plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+         panel.grid.major = element_line(size = 0.5, linetype = 'dotted'))
+```
+
+\hspace{1em}
+\noindent
+Donde se observa los mismos resultados anteriormente descritos.
+
+
+\newpage
+
+\section{4. Obtenga un gráfico de rejilla (Trellis plot) con una línea superpuesta para cada persona. Comente.}
+
+
+\noindent
+Forma 1
+
+\hspace{1em}
+![Grafido de rejilla con linea superpuesta](4.1.png)
+
+```{r, fig.cap="Grafido de rejilla con linea superpuesta",message=FALSE, warning=FALSE,eval=FALSE}
+library(lattice)
+library(ggplot2)
+library(gridExtra)
+p1 <- suppressWarnings(xyplot(Valor ~ Tiempo | as.factor(ID), data = data_long, prepanel = function(x,y) prepanel.loess(x,y, family="gaussian"),xlab = "Tiempo", ylab= "Valor",
+                              panel= function(x,y){
+                                panel.xyplot(x,y)
+                                panel.loess(x,y, family="gaussian")
+                                panel.text(x=x,y=y,labels=y,pos=1,cex=0.5)},
+                               as.table=T))
+p1
+```
+
+\hspace{1em}
+\noindent
+En este gráfico, sin tener en cuenta la variable Género se observa que en general las personas tienen unos tiempos parecidos comparando los 3 momentos del experimento, no obstante hay algunas personas que tienen algunas diferencias como la 4,5,9,10 y 12, que a diferencia de las otras personas que en los 3 momentos tiene un desface máximo de 1 o 1.5 segundos, estos tienen tiempo un poco más variables como por ejemplo el sujeto 9 que en el primer momento tiene un tiempo de 33.53 pero en el segundo momento baja a un tiempo de 29.36 manteniendo parecido al tercer momento con un tiempo de 29.5.
+Otro ejemplo sería el sujeto 5 con un primer momento de 29.88, un segundo de 27.78 y un tercer momento de 30.5, teniendo el sujeto 5 una diferencia máxima de tiempo de 2.72, asi mismo con los otros sujetos con mayor variabilidad, no obstante se podría llegar a pensar que no son tiempos muy elevados pero comparándolos con los otros sujetos si se les nota la variabilidad.Además vemos que los sujetos con menores tiempos son el 6 el 13 y el 14, rozando el tiempo de 20 o por debajo, en el próximo grafico se analizará si la variable Género tiene algo que ver con esto.
+
+\hspace{1em}
+
+\newpage
+
+\noindent
+Forma 2, otra forma de verlos separados por la variable género
+
+![Grafico de rejilla clasificado por la variable genero](422.png)
+
+```{r,fig.align='left', fig.cap="Grafico de rejilla clasificado por la variable genero",eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, group = ID)) +
+  geom_line(aes(color = Genero)) +
+  facet_wrap(~ ID, ncol = 3) +
+  labs(x = "Tiempo", y = "Valor", color = "Género") +
+  scale_color_manual(values = c("red", "blue"), labels = c("Femenino", "Masculino")) +
+  theme_minimal()
+```
+
+\noindent
+En esta gráfica ya se puede tener en cuenta la variable género, de la cual se observa lo mismo que en la anterior gráfica de rejillas, la mayoría de sujetos no tiene mayor variabilidad, lo que realmente  interesaría es si el género podría llegar a influir directamente en los tiempos, anteriormente se observaron 3 sujetos los cuales tenían los menores tiempos a diferencia de los otros sujetos, resulta ser que los sujetos 6,13 y 14 son de género masculino lo cual podría llevar a pensar que el género puede ser una variable que influya en el tiempo, no obstante es solo un análisis descriptivo.
+
+
+\newpage
+\section{5. Obtenga boxplots de acuerdo al tiempo y al género. Interprete.}
+
+\noindent
+Forma 1
+
+![boxplot tiempo y genero (forma 1)](5.1.png)
+
+```{r, fig.cap="boxplot tiempo y genero (forma 1)",eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, fill = Genero)) +
+  geom_boxplot(color = "black", outlier.color = "black", outlier.shape = 1, size = 0.5) +
+  facet_wrap(~ Genero, ncol = 1) +
+  labs(x = "Tiempo", y = "Valor", fill = "Género") +
+  scale_fill_manual(values = c("#FF9999", "#99CCFF")) +
+  theme_minimal() +
+  theme(legend.position = "right", 
+        axis.line = element_line(size = 1, colour = "black"), 
+        axis.text = element_text(size = 8), 
+        axis.title = element_text(size = 10, face = "bold"), 
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+        panel.grid.major = element_line(size = 0.5, linetype = 'dotted'))
+```
+
+\noindent
+Se observa con respecto al grupo de mujeres que no se evidencia diferencia entre las tres tomas de tiempo ya que sus cajas se traslapan, además, se presenta variación en sus datos, donde para las tres tomas de tiempo se presenta una asimetría hacia la izquierda, es decir, la mayoría de los datos se encuentran por debajo de la mediana, indicando que este grupo se demora mas en recorrer la distancia dada.
+Con respecto al grupo de los hombres, se observa que no existe diferencia entre las tres tomas de tiempo ya que sus cajas se traslapan, además, casi no se tiene variación en los datos, contado con una asimetría hacia la derecha, indicando que en promedio este grupo se demora menos tiempo en recorrer la distancia dada.
+
+\noindent
+Otra forma de realizar esta gráfica ver codigo en R
+
+```{r, fig.cap="boxplot tiempo y genero (forma 2)",eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, fill = Genero)) +
+  geom_boxplot(color = "black", outlier.color = "black", outlier.shape = 1, size = 0.5) +
+  facet_wrap(~ Genero, ncol = 1) +
+  labs(x = "Tiempo", y = "Valor", fill = "Género") +
+  scale_fill_manual(values = c("#FF9999", "#99CCFF")) +
+  theme_minimal() +
+  theme(
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(size = 10, face = "bold"),
+    legend.text = element_text(size = 8),
+    panel.grid.major = element_line(size = 0.2),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    plot.title = element_text(size = 10, face = "bold", hjust = 0.5),
+    strip.text = element_text(size = 10, face = "bold"),
+    strip.background = element_rect(fill = "white", color = "black", size = 0.5)
+  ) +
+  ggtitle("")
+```
+
+\newpage
+\section{6. Obtenga gráficos de líneas promedio de acuerdo al género.
+Interprete.}
+
+![Grafico de lineas promedio para la variable genero](6.11.png)
+
+```{r,fig.cap="Grafico de lineas promedio para la variable genero",message=FALSE, warning=FALSE,eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, color = Genero)) +
+  stat_summary(fun.y = "mean", geom = "line", size = 1.2, aes(group = Genero)) +
+  labs(x = "Tiempo", y = "Valor", color = "Género") +
+  scale_color_manual(values = c("pink", "blue")) +
+  theme_minimal() +
+  theme(legend.position = "right", 
+        axis.line = element_line(size = 1, colour = "black"), 
+        axis.text = element_text(size = 8), 
+        axis.title = element_text(size = 10, face = "bold"), 
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+        panel.grid.major = element_line(size = 0.5, linetype = 'dotted'))
+```
+
+\noindent
+Se puede notar que en ambas líneas de promedios se tiene una pendiente negativa, lo que muestra una tendencia a reducir el tiempo utilizado para hacer el recorrido, siendo mucho menor el tiempo promedio de cada recorrido en los hombres.
+
+
+\newpage
+\section{7. Obtenga un gráfico de líneas promedio con boxplots de acuerdo al género. Interprete.}
+
+![Grafico de linea promedio con boxplot de acuerdo a la variable genero](7.1.png)
+
+```{r, fig.cap="Grafico de linea promedio con boxplot de acuerdo a la variable genero", eval=FALSE}
+ggplot(data_long, aes(x = Tiempo, y = Valor, fill = Genero)) +
+  geom_boxplot() +
+  geom_line(data = data_resumen, aes(x = Tiempo, y = media, color = Genero, group = Genero), size = 1) +
+  scale_color_manual(values = c("blue", "red")) +
+  labs(x = "Tiempo", y = "Valor", fill = "Género", color = "Género") +
+  theme_minimal() +
+  theme(legend.position = "right", 
+        axis.line = element_line(size = 1, colour = "black"), 
+        axis.text = element_text(size = 8), 
+        axis.title = element_text(size = 10, face = "bold"), 
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+        panel.grid.major = element_line(size = 0.5, linetype = 'dotted'))
+```
+
+\noindent
+Con respecto a este gráfico se puede observar que no se evidencian diferencias entre las tres tomas de tiempo para ambos grupos (hombres y mujeres) ya que sus cajas se traslapan, además, se presenta mayor dispersión de datos en el grupo de las mujeres. Se puede notar que en ambas líneas de promedios se tiene una pendiente negativa, lo que indica que se tiene una tendencia a reducir el tiempo en hacer el recorrido a medida que se toman las tres tomas de tiempo.
+
+\section{8. De lo observado en esta visualización y en los estadísticos de resumen, parece haber alguna diferencia en los tiempos registrados por mujeres y hombres?}
+
+\noindent
+Con base en los anteriores numerales, se evidencia que si hay una diferencia grande entre hombres y mujeres para cada toma de tiempo, notando una tendencia en ambos grupos a ser menor el tiempo que se usa para realizar cada recorrido, sin embargo, los tiempos promedio de los hombres siempre son menores, indicando que este grupo se demora menos en recorrer la distancia dada.   
+
+
+\newpage
+\section{9. Utilizando la técnica de reducción de dimensionalidad de estadísticos de resumen basada en regresión líneal vista en clase, obtenga para cada persona su intercepto y su pendiente estimados.}
+
+
+\noindent
+Forma 1 
+
+\begin{verbatim}
+coefs <- data_long %>%
+  group_by(ID, Genero) %>%
+  summarise(intercept = lm(Valor ~ Tiempo)$coefficients[1],
+            slope = lm(Valor ~ Tiempo)$coefficients[2])
+kable(coefs)
+\end{verbatim}
+
+```{r, warning=FALSE, message=FALSE}
+coefs <- data_long %>%
+  group_by(ID, Genero) %>%
+  summarise(intercept = lm(Valor ~ Tiempo)$coefficients[1],
+            slope = lm(Valor ~ Tiempo)$coefficients[2])
+kable(coefs)
+```
+
+\noindent
+Forma 2 
+
+\noindent
+Agrupar los datos por ID
+
+\begin{verbatim}
+data_grouped <- data_long %>% group_by(ID)
+\end{verbatim}
+
+```{r}
+data_grouped <- data_long %>% group_by(ID)
+```
+
+\noindent
+Resumen estadístico para cada ID
+
+\begin{verbatim}
+data_summary <- data_grouped %>% 
+  summarize(mean = mean(Valor), sd = sd(Valor), min = min(Valor), max = max(Valor))
+\end{verbatim}
+
+```{r}
+data_summary <- data_grouped %>% 
+  summarize(mean = mean(Valor), sd = sd(Valor), min = min(Valor), max = max(Valor))
+```
+
+\noindent
+Regresión lineal para cada ID
+
+\begin{verbatim}
+data_lm <- data_grouped %>% 
+  do(model = lm(Valor ~ Tiempo, data = .))
+\end{verbatim}
+
+```{r}
+data_lm <- data_grouped %>% 
+  do(model = lm(Valor ~ Tiempo, data = .))
+```
+
+\noindent
+Coeficientes de regresión para cada ID
+
+\begin{verbatim}
+data_coefs <- data_lm %>% 
+  summarize(
+    intercept = coef(model)[1],
+    slope = coef(model)[2]
+  )
+\end{verbatim}
+
+```{r}
+data_coefs <- data_lm %>% 
+  summarize(
+    intercept = coef(model)[1],
+    slope = coef(model)[2]
+  )
+```
+
+\noindent
+Resultados
+
+\begin{verbatim}
+data_results <- bind_cols(data_summary, data_coefs)
+\end{verbatim}
+
+```{r}
+data_results <- bind_cols(data_summary, data_coefs)
+kable(data_results)
+```
+
+\newpage
+\section{10. Con base en los parámetros estimados del numeral anterior
+y una prueba estadística apropiada ¿observa alguna diferencia en los
+interceptos? ¿observa alguna diferencia en las pendientes? Interprete.}
+
+\noindent
+Realizando un test t de dos muestras para la diferencia de medias, donde las hipótesis son:
+
+
+\noindent
+$ H_0:$ El valor medio del intercepto estimado es el mismo para ambos géneros.
+\noindent
+$ H_1:$ El valor medio del intercepto estimado es diferente para ambos géneros.
+
+
+\begin{verbatim}
+t.test(intercept ~ Genero, data = coefs)
+\end{verbatim}
+
+
+```{r}
+t.test(intercept ~ Genero, data = coefs)
+```
+
+\noindent
+Con un p-valor de 0.03518 se puede rechazar la hipótesis nula de que no hay diferencia 
+en los interceptos entre los géneros. Esto sugiere que hay evidencia estadística de que
+hay una diferencia significativa en los valores de intercepto entre hombres y mujeres.
